@@ -11,7 +11,24 @@ require('dotenv').config();
 
 const app = express();
 
-app.use(cors());
+// Enhanced CORS configuration for Vercel frontend
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://localhost:3000',
+    'https://localhost:5173',
+    /\.vercel\.app$/,
+    /\.railway\.app$/,
+    /\.render\.com$/,
+    'https://stockmarket-ql5uwv9qp-ranjith-hs-projects.vercel.app',
+    /https:\/\/.*\.vercel\.app$/
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
 app.use(express.json());
 
 // MongoDB connection with reasonable timeout handling
@@ -90,6 +107,19 @@ app.get('/health', (req, res) => {
     res.status(503).json(status);
   }
 });
+
+// Debug endpoint for frontend testing
+app.get('/api/test', (req, res) => {
+  res.json({
+    message: 'Backend is working!',
+    timestamp: new Date().toISOString(),
+    cors: 'enabled',
+    environment: process.env.NODE_ENV
+  });
+});
+
+// CORS preflight handler
+app.options('*', cors());
 
 // Global variable to track the last update time
 let lastUpdateTime = new Date();
