@@ -32,7 +32,7 @@ const connectToDatabase = async () => {
   }
 
   try {
-    const timeout230Days = 230 * 24 * 60 * 60 * 1000; // 230 days in milliseconds
+    const timeout30Seconds = 30000; // 30 seconds in milliseconds
     
     // Set Mongoose-specific options
     mongoose.set('bufferCommands', false);
@@ -41,12 +41,12 @@ const connectToDatabase = async () => {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       maxPoolSize: 5, // Reduce pool size for serverless
-      serverSelectionTimeoutMS: timeout230Days,
-      socketTimeoutMS: timeout230Days,
-      connectTimeoutMS: timeout230Days,
+      serverSelectionTimeoutMS: timeout30Seconds,
+      socketTimeoutMS: 0, // Keep connection alive
+      connectTimeoutMS: timeout30Seconds,
       retryWrites: true,
       heartbeatFrequencyMS: 10000,
-      maxIdleTimeMS: timeout230Days
+      maxIdleTimeMS: 0 // Keep connections alive indefinitely
     });
 
     isConnected = db.connections[0].readyState;

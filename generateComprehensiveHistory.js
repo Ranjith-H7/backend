@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const generateComprehensiveHistoryData = async () => {
   try {
-    const timeout230Days = 230 * 24 * 60 * 60 * 1000; // 230 days in milliseconds
+    const timeout30Seconds = 30000; // 30 seconds in milliseconds
     
     // Set Mongoose-specific options
     mongoose.set('bufferCommands', false);
@@ -12,13 +12,13 @@ const generateComprehensiveHistoryData = async () => {
     await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: timeout230Days,
-      socketTimeoutMS: timeout230Days,
-      connectTimeoutMS: timeout230Days,
+      serverSelectionTimeoutMS: timeout30Seconds,
+      socketTimeoutMS: 0, // Keep connection alive
+      connectTimeoutMS: timeout30Seconds,
       maxPoolSize: 10,
       retryWrites: true,
       heartbeatFrequencyMS: 10000,
-      maxIdleTimeMS: timeout230Days
+      maxIdleTimeMS: 0 // Keep connections alive indefinitely
     });
     console.log('MongoDB connected');
 
