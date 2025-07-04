@@ -5,13 +5,28 @@ const Transaction = require('../models/Transaction');
 const router = express.Router();
 
 router.get('/assets', async (req, res) => {
-  const assets = await Asset.find();
-  res.json(assets);
+  try {
+    const assets = await Asset.find().maxTimeMS(10000); // 10 second timeout
+    res.json(assets);
+  } catch (error) {
+    console.error('Assets fetch error:', error);
+    if (error.name === 'MongooseError' && error.message.includes('buffering timed out')) {
+      res.status(503).json({ 
+        error: 'Database connection timeout. Please try again later.',
+        details: 'Unable to connect to database within timeout period'
+      });
+    } else {
+      res.status(500).json({ error: 'Server error' });
+    }
+  }
 });
 
 router.get('/portfolio/:userId', async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId).populate('portfolio.assetId');
+    const user = await User.findById(req.params.userId)
+      .populate('portfolio.assetId')
+      .maxTimeMS(10000); // 10 second timeout
+      
     if (!user) return res.status(404).json({ error: 'User not found' });
     
     // Filter out portfolio items with null assetId and calculate profit/loss
@@ -42,7 +57,14 @@ router.get('/portfolio/:userId', async (req, res) => {
     });
   } catch (error) {
     console.error('Portfolio error:', error);
-    res.status(500).json({ error: 'Server error' });
+    if (error.name === 'MongooseError' && error.message.includes('buffering timed out')) {
+      res.status(503).json({ 
+        error: 'Database connection timeout. Please try again later.',
+        details: 'Unable to connect to database within timeout period'
+      });
+    } else {
+      res.status(500).json({ error: 'Server error' });
+    }
   }
 });
 

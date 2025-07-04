@@ -14,12 +14,63 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error(err));
+// MongoDB connection with better timeout handling
+const connectToDatabase = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 30000, // Increase timeout to 30 seconds
+      socketTimeoutMS: 45000, // Socket timeout
+      connectTimeoutMS: 30000, // Connection timeout
+      maxPoolSize: 10, // Maximum number of connections in the connection pool
+      retryWrites: true, // Enable retryable writes
+      bufferCommands: false, // Disable mongoose buffering
+      bufferMaxEntries: 0 // Disable mongoose buffering
+    });
+    console.log('🌟 MongoDB connected successfully');
+  } catch (error) {
+    console.error('❌ MongoDB connection error:', error);
+    // Retry connection after 5 seconds
+    setTimeout(connectToDatabase, 5000);
+  }
+};
+
+// Handle connection events
+mongoose.connection.on('connected', () => {
+  console.log('📦 Mongoose connected to MongoDB');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('❌ Mongoose connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('📡 Mongoose disconnected from MongoDB');
+});
+
+// Connect to database
+connectToDatabase();
 
 app.use('/api/auth', authRoutes);
 app.use('/api', assetRoutes);
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  const dbStatus = mongoose.connection.readyState;
+  const status = {
+    server: 'running',
+    database: dbStatus === 1 ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  };
+  
+  if (dbStatus === 1) {
+    res.json(status);
+  } else {
+    res.status(503).json(status);
+  }
+});
 
 // Global variable to track the last update time
 let lastUpdateTime = new Date();
@@ -29,13 +80,34 @@ const updateLastUpdateTime = () => {
   lastUpdateTime = new Date();
 };
 
-// Initialize dummy data
+// Initialize dummy data with error handling
 const initializeAssets = async () => {
-  const existingAssets = await Asset.find();
-  if (existingAssets.length === 0) {
-    const assets = [...dummyStocks, ...dummyMutualFunds];
-    await Asset.insertMany(assets);
-    console.log('🎯 Initial assets data created');
+  try {
+    // Wait for MongoDB connection before proceeding
+    if (mongoose.connection.readyState !== 1) {
+      console.log('⏳ Waiting for MongoDB connection...');
+      await new Promise((resolve, reject) => {
+        const checkConnection = () => {
+          if (mongoose.connection.readyState === 1) {
+            resolve();
+          } else {
+            setTimeout(checkConnection, 1000);
+          }
+        };
+        checkConnection();
+        // Timeout after 30 seconds
+        setTimeout(() => reject(new Error('MongoDB connection timeout')), 30000);
+      });
+    }
+
+    const existingAssets = await Asset.find().maxTimeMS(10000); // 10 second timeout
+    if (existingAssets.length === 0) {
+      const assets = [...dummyStocks, ...dummyMutualFunds];
+      await Asset.insertMany(assets);
+      console.log('🎯 Initial assets data created');
+    }
+  } catch (error) {
+    console.error('❌ Error initializing assets:', error);
   }
 };
 
@@ -43,7 +115,14 @@ const initializeAssets = async () => {
 const updateAllUsersPortfolioData = async () => {
   try {
     console.log('🔄 Starting portfolio updates for all users...');
-    const users = await User.find({}).populate('portfolio.assetId');
+    
+    // Check MongoDB connection before proceeding
+    if (mongoose.connection.readyState !== 1) {
+      console.log('❌ MongoDB not connected, skipping portfolio update');
+      return;
+    }
+
+    const users = await User.find({}).populate('portfolio.assetId').maxTimeMS(15000);
     let updatedUsersCount = 0;
     
     for (const user of users) {
@@ -179,19 +258,69 @@ app.get('/api/update-all-portfolios', async (req, res) => {
 
 // Initialize on startup
 const startServer = async () => {
-  await initializeAssets();
-  console.log('🚀 Server starting up...');
-  
-  // Update the last update time to now since we're doing initial sync
-  updateLastUpdateTime();
-  
-  // Run initial portfolio update
-  setTimeout(async () => {
-    await updateAllUsersPortfolioData();
-    console.log('🎯 Initial portfolio sync completed');
-  }, 5000); // Wait 5 seconds for everything to initialize
+  try {
+    console.log('🚀 Server starting up...');
+    
+    // Wait for database connection first
+    await new Promise((resolve, reject) => {
+      const checkConnection = () => {
+        if (mongoose.connection.readyState === 1) {
+          resolve();
+        } else {
+          setTimeout(checkConnection, 1000);
+        }
+      };
+      checkConnection();
+      // Timeout after 30 seconds
+      setTimeout(() => reject(new Error('Database connection timeout on startup')), 30000);
+    });
+    
+    await initializeAssets();
+    console.log('✅ Assets initialized successfully');
+    
+    // Update the last update time to now since we're doing initial sync
+    updateLastUpdateTime();
+    
+    // Run initial portfolio update after a delay
+    setTimeout(async () => {
+      try {
+        await updateAllUsersPortfolioData();
+        console.log('🎯 Initial portfolio sync completed');
+      } catch (error) {
+        console.error('❌ Initial portfolio sync failed:', error);
+      }
+    }, 5000); // Wait 5 seconds for everything to initialize
+    
+  } catch (error) {
+    console.error('❌ Server startup failed:', error);
+    console.log('🔄 Server will continue running, but some features may be limited');
+  }
 };
 
 startServer();
 
-app.listen(5001, () => console.log('🌟 Server running on port 5001'));
+const PORT = process.env.PORT || 5001;
+const server = app.listen(PORT, () => console.log(`🌟 Server running on port ${PORT}`));
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully...');
+  server.close(() => {
+    console.log('💤 Process terminated');
+    mongoose.connection.close(false, () => {
+      console.log('📡 MongoDB connection closed');
+      process.exit(0);
+    });
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received, shutting down gracefully...');
+  server.close(() => {
+    console.log('💤 Process terminated');
+    mongoose.connection.close(false, () => {
+      console.log('📡 MongoDB connection closed');
+      process.exit(0);
+    });
+  });
+});

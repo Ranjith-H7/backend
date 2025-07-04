@@ -8,7 +8,7 @@ router.post('/register', async (req, res) => {
   if (!email.includes('@')) return res.status(400).json({ error: 'Invalid email' });
 
   try {
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email }).maxTimeMS(10000);
     if (existingUser) return res.status(400).json({ error: 'Email already exists' });
 
     const user = new User({ 
@@ -20,14 +20,21 @@ router.post('/register', async (req, res) => {
     res.json({ message: 'Registration successful' });
   } catch (err) {
     console.error('Registration error:', err);
-    res.status(500).json({ error: 'Server error' });
+    if (err.name === 'MongooseError' && err.message.includes('buffering timed out')) {
+      res.status(503).json({ 
+        error: 'Database connection timeout. Please try again later.',
+        details: 'Unable to connect to database within timeout period'
+      });
+    } else {
+      res.status(500).json({ error: 'Server error' });
+    }
   }
 });
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).maxTimeMS(10000);
     if (!user || user.password !== password) return res.status(400).json({ error: 'Invalid credentials' });
     res.json({ 
       message: 'Login successful', 
@@ -37,7 +44,14 @@ router.post('/login', async (req, res) => {
     });
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ error: 'Server error' });
+    if (err.name === 'MongooseError' && err.message.includes('buffering timed out')) {
+      res.status(503).json({ 
+        error: 'Database connection timeout. Please try again later.',
+        details: 'Unable to connect to database within timeout period'
+      });
+    } else {
+      res.status(500).json({ error: 'Server error' });
+    }
   }
 });
 
