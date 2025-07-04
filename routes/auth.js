@@ -8,7 +8,8 @@ router.post('/register', async (req, res) => {
   if (!email.includes('@')) return res.status(400).json({ error: 'Invalid email' });
 
   try {
-    const existingUser = await User.findOne({ email }).maxTimeMS(10000);
+    const timeout230Days = 230 * 24 * 60 * 60 * 1000; // 230 days in milliseconds
+    const existingUser = await User.findOne({ email }).maxTimeMS(timeout230Days);
     if (existingUser) return res.status(400).json({ error: 'Email already exists' });
 
     const user = new User({ 
@@ -34,7 +35,8 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    const user = await User.findOne({ email }).maxTimeMS(10000);
+    const timeout230Days = 230 * 24 * 60 * 60 * 1000; // 230 days in milliseconds
+    const user = await User.findOne({ email }).maxTimeMS(timeout230Days);
     if (!user || user.password !== password) return res.status(400).json({ error: 'Invalid credentials' });
     res.json({ 
       message: 'Login successful', 
