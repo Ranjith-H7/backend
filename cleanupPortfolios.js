@@ -4,7 +4,23 @@ require('dotenv').config();
 
 const cleanupPortfolios = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
+    const timeout230Days = 230 * 24 * 60 * 60 * 1000; // 230 days in milliseconds
+    
+    // Set Mongoose-specific options
+    mongoose.set('bufferCommands', false);
+    mongoose.set('bufferMaxEntries', 0);
+    
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: timeout230Days,
+      socketTimeoutMS: timeout230Days,
+      connectTimeoutMS: timeout230Days,
+      maxPoolSize: 10,
+      retryWrites: true,
+      heartbeatFrequencyMS: 10000,
+      maxIdleTimeMS: timeout230Days
+    });
     console.log('MongoDB connected');
 
     // Find all users and clean their portfolios

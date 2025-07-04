@@ -32,14 +32,22 @@ const connectToDatabase = async () => {
   }
 
   try {
+    const timeout230Days = 230 * 24 * 60 * 60 * 1000; // 230 days in milliseconds
+    
+    // Set Mongoose-specific options
+    mongoose.set('bufferCommands', false);
+    mongoose.set('bufferMaxEntries', 0);
+    
     const db = await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
       maxPoolSize: 5, // Reduce pool size for serverless
-      serverSelectionTimeoutMS: 10000, // Increase timeout for MongoDB Atlas
-      socketTimeoutMS: 30000, // Reduce socket timeout
-      bufferCommands: false, // Disable mongoose buffering
-      bufferMaxEntries: 0 // Disable mongoose buffering
+      serverSelectionTimeoutMS: timeout230Days,
+      socketTimeoutMS: timeout230Days,
+      connectTimeoutMS: timeout230Days,
+      retryWrites: true,
+      heartbeatFrequencyMS: 10000,
+      maxIdleTimeMS: timeout230Days
     });
 
     isConnected = db.connections[0].readyState;
