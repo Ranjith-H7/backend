@@ -19,6 +19,10 @@ const connectToDatabase = async () => {
   try {
     const timeout230Days = 230 * 24 * 60 * 60 * 1000; // 230 days in milliseconds
     
+    // Set Mongoose-specific options
+    mongoose.set('bufferCommands', false);
+    mongoose.set('bufferMaxEntries', 0);
+    
     await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
@@ -27,11 +31,8 @@ const connectToDatabase = async () => {
       connectTimeoutMS: timeout230Days, // Connection timeout for 230 days
       maxPoolSize: 10, // Maximum number of connections in the connection pool
       retryWrites: true, // Enable retryable writes
-      bufferCommands: false, // Disable mongoose buffering
-      bufferMaxEntries: 0, // Disable mongoose buffering
       heartbeatFrequencyMS: 10000, // Send heartbeat every 10 seconds
-      maxIdleTimeMS: timeout230Days, // Keep connections alive for 230 days
-      waitQueueTimeoutMS: timeout230Days // Wait queue timeout for 230 days
+      maxIdleTimeMS: timeout230Days // Keep connections alive for 230 days
     });
     console.log('🌟 MongoDB connected successfully with 230-day timeout');
   } catch (error) {
