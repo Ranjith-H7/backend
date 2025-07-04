@@ -6,8 +6,7 @@ const router = express.Router();
 
 router.get('/assets', async (req, res) => {
   try {
-    const timeout230Days = 230 * 24 * 60 * 60 * 1000; // 230 days in milliseconds
-    const assets = await Asset.find().maxTimeMS(timeout230Days);
+    const assets = await Asset.find().maxTimeMS(30000); // 30 second timeout
     res.json(assets);
   } catch (error) {
     console.error('Assets fetch error:', error);
@@ -24,10 +23,9 @@ router.get('/assets', async (req, res) => {
 
 router.get('/portfolio/:userId', async (req, res) => {
   try {
-    const timeout230Days = 230 * 24 * 60 * 60 * 1000; // 230 days in milliseconds
     const user = await User.findById(req.params.userId)
       .populate('portfolio.assetId')
-      .maxTimeMS(timeout230Days);
+      .maxTimeMS(30000); // 30 second timeout
       
     if (!user) return res.status(404).json({ error: 'User not found' });
     

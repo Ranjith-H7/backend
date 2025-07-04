@@ -14,30 +14,44 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// MongoDB connection with 230-day timeout handling
+// MongoDB connection with reasonable timeout handling
 const connectToDatabase = async () => {
   try {
-    const timeout230Days = 230 * 24 * 60 * 60 * 1000; // 230 days in milliseconds
+    const timeout30Seconds = 30000; // 30 seconds in milliseconds
     
     // Set Mongoose-specific options
     mongoose.set('bufferCommands', false);
     
-    await mongoose.connect(process.env.MONGO_URI, {
+    // Basic connection options that work with most MongoDB setups
+    const connectionOptions = {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: timeout230Days, // 230 days timeout
-      socketTimeoutMS: timeout230Days, // Socket timeout for 230 days
-      connectTimeoutMS: timeout230Days, // Connection timeout for 230 days
-      maxPoolSize: 10, // Maximum number of connections in the connection pool
-      retryWrites: true, // Enable retryable writes
-      heartbeatFrequencyMS: 10000, // Send heartbeat every 10 seconds
-      maxIdleTimeMS: timeout230Days // Keep connections alive for 230 days
-    });
-    console.log('🌟 MongoDB connected successfully with 230-day timeout');
+      serverSelectionTimeoutMS: timeout30Seconds,
+      connectTimeoutMS: timeout30Seconds,
+      maxPoolSize: 10,
+      retryWrites: true
+    };
+
+    // Add additional options for production
+    if (process.env.NODE_ENV === 'production') {
+      connectionOptions.socketTimeoutMS = 0; // Keep connection alive
+      connectionOptions.heartbeatFrequencyMS = 10000;
+      connectionOptions.maxIdleTimeMS = 0;
+    }
+    
+    await mongoose.connect(process.env.MONGO_URI, connectionOptions);
+    console.log('🌟 MongoDB connected successfully');
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
-    // Retry connection after 5 seconds
-    setTimeout(connectToDatabase, 5000);
+    console.error('❌ MongoDB connection error:', error.message);
+    
+    // Give specific advice for common issues
+    if (error.message.includes('IP')) {
+      console.error('💡 Tip: Add 0.0.0.0/0 to MongoDB Atlas IP whitelist for Render deployment');
+    }
+    
+    // Retry connection after 10 seconds
+    console.log('🔄 Retrying connection in 10 seconds...');
+    setTimeout(connectToDatabase, 10000);
   }
 };
 
@@ -100,12 +114,12 @@ const initializeAssets = async () => {
           }
         };
         checkConnection();
-        // Timeout after 230 days
-        setTimeout(() => reject(new Error('MongoDB connection timeout')), 230 * 24 * 60 * 60 * 1000);
+        // Timeout after 30 seconds
+        setTimeout(() => reject(new Error('MongoDB connection timeout')), 30000);
       });
     }
 
-    const existingAssets = await Asset.find().maxTimeMS(230 * 24 * 60 * 60 * 1000); // 230 days timeout
+    const existingAssets = await Asset.find().maxTimeMS(30000); // 30 second timeout
     if (existingAssets.length === 0) {
       const assets = [...dummyStocks, ...dummyMutualFunds];
       await Asset.insertMany(assets);
@@ -127,7 +141,7 @@ const updateAllUsersPortfolioData = async () => {
       return;
     }
 
-    const users = await User.find({}).populate('portfolio.assetId').maxTimeMS(230 * 24 * 60 * 60 * 1000); // 230 days timeout
+    const users = await User.find({}).populate('portfolio.assetId').maxTimeMS(30000); // 30 second timeout
     let updatedUsersCount = 0;
     
     for (const user of users) {
@@ -276,8 +290,8 @@ const startServer = async () => {
         }
       };
       checkConnection();
-      // Timeout after 230 days
-      setTimeout(() => reject(new Error('Database connection timeout on startup')), 230 * 24 * 60 * 60 * 1000);
+      // Timeout after 30 seconds
+      setTimeout(() => reject(new Error('Database connection timeout on startup')), 30000);
     });
     
     await initializeAssets();
