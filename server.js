@@ -12,7 +12,7 @@ require('dotenv').config();
 const app = express();
 
 // Enhanced CORS configuration for Vercel frontend
-app.use(cors({
+/*app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://localhost:5173',
@@ -28,6 +28,22 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+*/
+
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+
+    // Allow all origins - you can put filtering logic here if needed
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
 
 app.use(express.json());
 
